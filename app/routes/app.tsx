@@ -19,7 +19,9 @@ export default function App() {
   return (
     <AppProvider apiKey={apiKey}>
       <NavMenu>
-        <Link to="/app" rel="home">Home</Link>
+        <Link to="/app" rel="home">
+          RUM Setup
+        </Link>
       </NavMenu>
       <Outlet />
     </AppProvider>
