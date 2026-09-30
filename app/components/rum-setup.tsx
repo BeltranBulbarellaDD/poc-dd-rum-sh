@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { DruidsEnvironment } from "@datadog/druids/layout/DruidsEnvironment";
 import { TextArea } from "@datadog/druids/form/TextArea";
 import { Button } from "@datadog/druids/form/Button";
@@ -6,23 +6,20 @@ import { StatusPill } from "@datadog/druids/pills/StatusPill";
 import { Text } from "@datadog/druids/typography/Text";
 import { RumIcon } from "@datadog/druids/icons/Rum";
 import { ExternalLinkIcon } from "@datadog/druids/icons/ExternalLink";
+import { CheckCircledIcon } from "@datadog/druids/icons/CheckCircled";
 import "@datadog/druids/styles.css";
 import { useFetcher, useLoaderData } from "react-router";
 import type { action, loader } from "../routes/app._index";
-import { parseRumConfig, rumApplicationUrl } from "../rum-config";
+import { parseRumConfig, rumApplicationUrl, rumListUrl } from "../rum-config";
+
+const DOCS_URL = "https://docs.datadoghq.com/integrations/rum-shopify/";
 
 const EMBED_HANDLE = "datadog-rum";
 
-const EMBED_STATUS = {
-  active: { level: "success", label: "Active" },
-  available: { level: "warning", label: "Not activated" },
-  unavailable: { level: "default", label: "Unavailable" },
-  checking: { level: "in-progress", label: "Checking" },
-} as const;
+type EmbedStatus = "checking" | "active" | "available" | "unavailable";
 
-function StorefrontCard({ isConfigured }: { isConfigured: boolean }) {
-  const [status, setStatus] = useState<keyof typeof EMBED_STATUS>("checking");
-
+function useEmbedStatus() {
+  const [status, setStatus] = useState<EmbedStatus>("checking");
   useEffect(() => {
     shopify.app.extensions().then(
       (extensions) => {
@@ -44,45 +41,61 @@ function StorefrontCard({ isConfigured }: { isConfigured: boolean }) {
       () => setStatus("unavailable"),
     );
   }, []);
+  return status;
+}
 
-  const openThemeEditor = () =>
-    open(
-      `shopify://admin/themes/current/editor?context=apps&activateAppId=${shopify.config.apiKey}/${EMBED_HANDLE}`,
-      "_top",
-    );
+function openThemeEditor() {
+  open(
+    `shopify://admin/themes/current/editor?context=apps&activateAppId=${shopify.config.apiKey}/${EMBED_HANDLE}`,
+    "_top",
+  );
+}
 
+function Step({
+  number,
+  isDone,
+  title,
+  description,
+  action,
+  children,
+}: {
+  number: number;
+  isDone: boolean;
+  title: string;
+  description: ReactNode;
+  action?: ReactNode;
+  children?: ReactNode;
+}) {
   return (
-    <s-section>
-      <s-stack
-        direction="inline"
-        justifyContent="space-between"
-        alignItems="center"
-        gap="base"
-      >
-        <s-stack direction="block">
-          <Text size="lg" weight="bold">
-            Storefront
-          </Text>
-          <Text variant="secondary">
-            {status === "active"
-              ? "RUM is running on your online store."
-              : "Turn on the Datadog RUM app embed in your theme to start collecting sessions."}
-          </Text>
-        </s-stack>
-        <s-stack direction="inline" alignItems="center" gap="base">
-          <StatusPill level={EMBED_STATUS[status].level}>
-            {EMBED_STATUS[status].label}
-          </StatusPill>
-          <Button
-            onClick={openThemeEditor}
-            isDisabled={!isConfigured || status === "checking"}
-            isPrimary={status !== "active"}
-            level="featured"
-            label={status === "active" ? "Open theme editor" : "Activate"}
-          />
-        </s-stack>
-      </s-stack>
-    </s-section>
+    <s-stack direction="block" gap="base">
+      <s-grid gridTemplateColumns="1fr auto" alignItems="center" gap="base">
+        <s-grid gridTemplateColumns="24px 1fr" alignItems="center" gap="base">
+          <span
+            style={{
+              width: 24,
+              height: 24,
+              flexShrink: 0,
+              display: "grid",
+              placeItems: "center",
+              borderRadius: "50%",
+              border: isDone
+                ? undefined
+                : "1px solid var(--ui-border, #d0d0da)",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            {isDone ? <CheckCircledIcon size="lg" level="success" /> : number}
+          </span>
+          <s-stack direction="block">
+            <Text weight="bold">{title}</Text>
+            <Text variant="secondary">{description}</Text>
+          </s-stack>
+        </s-grid>
+        {action}
+      </s-grid>
+      {children}
+    </s-stack>
   );
 }
 
@@ -93,6 +106,7 @@ export default function RumSetup() {
   const result = fetcher.data;
   const saved = result?.saved ? result.configuration : configuration;
   const error = loadError || result?.errors.join(" ");
+  const embedStatus = useEmbedStatus();
 
   // State
   const [text, setText] = useState(configuration);
@@ -123,14 +137,17 @@ export default function RumSetup() {
         </s-button>
         {error && <s-banner tone="critical">{error}</s-banner>}
         <s-section>
-          <s-stack direction="block" gap="base">
-            <s-stack
-              direction="inline"
-              justifyContent="space-between"
+          <s-stack direction="block" gap="large">
+            <s-grid
+              gridTemplateColumns="1fr auto"
               alignItems="center"
               gap="base"
             >
-              <s-stack direction="inline" alignItems="center" gap="base">
+              <s-grid
+                gridTemplateColumns="auto 1fr"
+                alignItems="center"
+                gap="base"
+              >
                 <RumIcon
                   size="xl"
                   style={{ color: "var(--ui-brand, #632ca6)" }}
@@ -143,60 +160,92 @@ export default function RumSetup() {
                     Monitor real user sessions on your storefront and checkout.
                   </Text>
                 </s-stack>
+              </s-grid>
+              <s-stack direction="inline" alignItems="center" gap="base">
+                <s-link href={DOCS_URL} target="_blank">
+                  Documentation
+                </s-link>
+                <Button
+                  href={applicationUrl}
+                  isExternal
+                  isDisabled={!applicationUrl}
+                  iconRight={ExternalLinkIcon}
+                  isPrimary
+                  label="Open in Datadog"
+                />
               </s-stack>
-              <StatusPill level={saved ? "success" : "default"}>
-                {saved ? "Configured" : "Not configured"}
-              </StatusPill>
-            </s-stack>
+            </s-grid>
             <s-divider />
-            <s-stack direction="block" gap="small-200">
-              <label htmlFor="rum-configuration">
-                <Text weight="bold">Configuration</Text>
-              </label>
-              <Text variant="secondary">
-                Paste the JSON from your RUM application&apos;s setup page in
-                Datadog. Required: applicationId, clientToken, site.
-              </Text>
-            </s-stack>
-            <TextArea
-              id="rum-configuration"
-              value={text}
-              defaultRows={14}
-              isFullWidth
-              isMonospace
-              maxLength={16384}
-              autoComplete="off"
-              isDisabled={saving || !!loadError}
-              onChange={(event) => setText(event.currentTarget.value)}
-            />
-            {dirty && text.trim() && !config && (
-              <s-banner tone="critical" heading="Invalid configuration">
-                {errors.join(" ")}
-              </s-banner>
-            )}
-            <s-stack
-              direction="inline"
-              justifyContent="space-between"
-              alignItems="center"
+            <Step
+              number={1}
+              isDone={!!saved}
+              title="Add your RUM configuration"
+              description={
+                <>
+                  Paste the JSON from your RUM application&apos;s setup page in
+                  Datadog. Required: applicationId, clientToken, site.
+                </>
+              }
+              action={
+                <s-stack direction="inline" alignItems="center" gap="base">
+                  {dirty && (
+                    <StatusPill level="warning">Unsaved changes</StatusPill>
+                  )}
+                  <s-link href={rumListUrl(config?.site)} target="_blank">
+                    Where do I find this?
+                  </s-link>
+                </s-stack>
+              }
             >
-              {dirty ? (
-                <StatusPill level="warning">Unsaved changes</StatusPill>
-              ) : (
-                <span />
-              )}
-              <Button
-                href={applicationUrl}
-                isExternal
-                isDisabled={!applicationUrl}
-                iconRight={ExternalLinkIcon}
-                isPrimary
-                level="featured"
-                label="Open in Datadog"
+              <TextArea
+                id="rum-configuration"
+                aria-label="RUM configuration JSON"
+                value={text}
+                defaultRows={14}
+                isFullWidth
+                isMonospace
+                maxLength={16384}
+                autoComplete="off"
+                isDisabled={saving || !!loadError}
+                onChange={(event) => setText(event.currentTarget.value)}
               />
-            </s-stack>
+              {dirty && text.trim() && !config && (
+                <s-banner tone="critical" heading="Invalid configuration">
+                  {errors.join(" ")}
+                </s-banner>
+              )}
+            </Step>
+            <s-divider />
+            <Step
+              number={2}
+              isDone={embedStatus === "active"}
+              title="Turn on storefront tracking"
+              description={
+                embedStatus === "active"
+                  ? "RUM is running on your online store."
+                  : "Activate the Datadog RUM app embed in your theme. It loads the Browser SDK on every storefront page, with Session Replay."
+              }
+              action={
+                <Button
+                  onClick={openThemeEditor}
+                  isDisabled={!saved || embedStatus === "checking"}
+                  isPrimary={embedStatus !== "active"}
+                  label={
+                    embedStatus === "active" ? "Open theme editor" : "Activate"
+                  }
+                />
+              }
+            />
+            <s-divider />
+            <Step
+              number={3}
+              isDone={false}
+              title="Track checkout"
+              description="Capture checkout events with a Shopify web pixel. Session Replay isn't available on checkout pages."
+              action={<StatusPill>Coming soon</StatusPill>}
+            />
           </s-stack>
         </s-section>
-        <StorefrontCard isConfigured={!!saved} />
       </s-page>
     </DruidsEnvironment>
   );

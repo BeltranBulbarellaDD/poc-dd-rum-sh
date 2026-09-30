@@ -50,6 +50,10 @@ export function rumApplicationUrl(config: RumConfig | null) {
   }
 }
 
+export function rumListUrl(site: Site = INTAKE_SITE_US1) {
+  return `https://${appHost(site)}/rum/list`;
+}
+
 export function parseRumConfig(text: string): {
   config: RumConfig | null;
   errors: string[];
