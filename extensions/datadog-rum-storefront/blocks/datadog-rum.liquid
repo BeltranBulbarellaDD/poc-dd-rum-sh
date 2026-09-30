@@ -1,0 +1,22 @@
+{% assign rum_config = app.metafields.datadog.rum_config.value %}
+{% if rum_config and request.design_mode == false %}
+  <script>
+    (function (h, o, u, n, d) {
+      h = h[d] = h[d] || { q: [], onReady: function (c) { h.q.push(c) } }
+      d = o.createElement(u); d.async = 1; d.src = n
+      d.crossOrigin = 'anonymous'
+      n = o.getElementsByTagName(u)[0]; n.parentNode.insertBefore(d, n)
+    })(window, document, 'script', 'https://www.datadoghq-browser-agent.com/us1/v7/datadog-rum-shopify.js', 'DD_RUM');
+    DD_RUM.onReady(function () {
+      DD_RUM.init({{ rum_config | json }});
+    });
+  </script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Datadog RUM",
+  "target": "head",
+  "settings": []
+}
+{% endschema %}

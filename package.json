@@ -17,13 +17,16 @@
     "prisma": "prisma",
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
-    "typecheck": "react-router typegen && tsc --noEmit"
+    "typecheck": "react-router typegen && tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "type": "module",
   "engines": {
     "node": ">=22.12"
   },
   "dependencies": {
+    "@datadog/druids": "0.1.0",
+    "@datadog/js-core": "0.0.16",
     "@prisma/client": "^6.16.3",
     "@react-router/dev": "7.18.2",
     "@react-router/fs-routes": "7.18.2",
