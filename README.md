@@ -20,6 +20,7 @@ prepares the Prisma SQLite database. Prisma stores Shopify authentication sessio
 ```sh
 yarn typecheck
 yarn lint
+yarn test
 yarn build
 shopify app config validate --json
 ```
@@ -30,9 +31,26 @@ shopify app config validate --json
 Development URLs are updated automatically by Shopify CLI. The app currently
 requests no resource access scopes.
 
-The product creation demo, product metafield, example metaobject, and additional
-demo page have been removed. Authentication, session storage, and lifecycle
-webhooks remain in place.
+## RUM setup
+
+Open the embedded app, paste a JSON configuration object, and save it. The app
+validates the values on the server and stores them in the `datadog.rum_config`
+JSON app-data metafield on the authenticated store's `AppInstallation`.
+Prisma continues to store authentication sessions only.
+
+Required fields: `applicationId` (UUID), `clientToken`, and `site`. Optional fields:
+`service`, `env`, `version`, `sessionSampleRate`, `sessionReplaySampleRate`,
+`trackUserInteractions`, `trackResources`, `trackLongTasks`, and
+`defaultPrivacyLevel`. Unknown options and JavaScript snippets are rejected.
+
+Omitted collection values default to session sampling at 100%, Replay at 0%,
+interaction/resource/long-task tracking enabled, and privacy level `mask`.
+Setting `sessionReplaySampleRate` above 0 is an explicit opt-in to recording
+sampled sessions. The application link uses the Datadog staging dashboard.
+
+Supported sites: US1, US3, US5, EU1, AP1, AP2, UK1, and `datad0g.com` (staging).
+The storefront integration is added separately; saving configuration alone does
+not instrument the store.
 
 See [Shopify React Router documentation](https://shopify.dev/docs/api/shopify-app-react-router)
 for authentication and deployment guidance.
