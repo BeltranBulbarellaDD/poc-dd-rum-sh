@@ -1,0 +1,13 @@
+{% assign rum_config = app.metafields.datadog.rum_config.value %}
+{% if rum_config.applicationId != blank and rum_config.clientToken != blank and request.design_mode == false %}
+  <meta name="datadog-rum-config" content="{{ rum_config | json | escape }}">
+{% endif %}
+
+{% schema %}
+{
+  "name": "Datadog RUM",
+  "target": "head",
+  "javascript": "datadog-rum.js",
+  "settings": []
+}
+{% endschema %}

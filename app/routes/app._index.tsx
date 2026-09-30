@@ -6,6 +6,7 @@ import type {
 } from "react-router";
 import { data, useFetcher, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { parseRumConfig, RUM_DEFAULTS } from "../rum-config";
 import { readRumConfig, saveRumConfig } from "../rum-config.server";
@@ -81,6 +82,93 @@ const EXAMPLE = JSON.stringify(
   null,
   2,
 );
+
+function StorefrontStatus({
+  configurationSaved,
+}: {
+  configurationSaved: boolean;
+}) {
+  const shopify = useAppBridge();
+  const [status, setStatus] = useState<
+    "checking" | "active" | "available" | "unavailable" | "missing" | "unknown"
+  >("checking");
+  const [checkCount, setCheckCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus("checking");
+    async function checkStatus() {
+      try {
+        const extensions = await shopify.app.extensions();
+        for (const extension of extensions) {
+          if (extension.type !== "theme_app_extension") continue;
+          for (const activation of extension.activations) {
+            if ("handle" in activation && activation.handle === "datadog-rum") {
+              if (!cancelled) setStatus(activation.status);
+              return;
+            }
+          }
+        }
+        if (!cancelled) setStatus("missing");
+      } catch {
+        if (!cancelled) setStatus("unknown");
+      }
+    }
+    void checkStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [shopify, checkCount]);
+
+  const labels = {
+    checking: "Checking storefront embed",
+    active: "Storefront embed active",
+    available: "Storefront embed inactive",
+    unavailable: "Storefront embed unavailable",
+    missing: "Storefront embed not installed",
+    unknown: "Storefront embed status unavailable",
+  };
+  const editorUrl = `https://${shopify.config.shop}/admin/themes/current/editor?context=apps&activateAppId=${shopify.config.apiKey}/datadog-rum`;
+
+  return (
+    <s-stack direction="block" gap="base">
+      <s-badge tone={status === "active" ? "success" : "neutral"}>
+        {labels[status]}
+      </s-badge>
+      <s-paragraph>
+        Save your configuration, enable Datadog RUM in the theme editor, then
+        save the theme. This status reflects the published theme; it does not
+        confirm delivery to Datadog.
+      </s-paragraph>
+      <s-stack direction="inline" gap="base">
+        <s-button
+          href={editorUrl}
+          target="_top"
+          disabled={
+            !configurationSaved ||
+            status === "missing" ||
+            status === "checking" ||
+            status === "unavailable"
+          }
+        >
+          {status === "active" ? "Open theme editor" : "Enable on storefront"}
+        </s-button>
+        <s-button
+          onClick={() => setCheckCount((count) => count + 1)}
+          disabled={status === "checking"}
+        >
+          Refresh status
+        </s-button>
+      </s-stack>
+      {status === "missing" && (
+        <s-paragraph>
+          The embed will be available after the app&apos;s theme extension is
+          deployed or previewed with Shopify CLI.
+        </s-paragraph>
+      )}
+    </s-stack>
+  );
+}
 
 export default function Index() {
   const { configuration, loadError } = useLoaderData<typeof loader>();
@@ -220,7 +308,11 @@ export default function Index() {
             </s-badge>
             {dirty && <s-badge tone="warning">Unsaved changes</s-badge>}
           </s-stack>
-          <s-paragraph>Storefront integration not configured.</s-paragraph>
+          <StorefrontStatus
+            configurationSaved={
+              !!parseRumConfig(savedConfiguration).config && !loadError
+            }
+          />
         </s-stack>
       </s-section>
     </s-page>
