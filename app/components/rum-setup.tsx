@@ -11,6 +11,81 @@ import { useFetcher, useLoaderData } from "react-router";
 import type { action, loader } from "../routes/app._index";
 import { parseRumConfig, rumApplicationUrl } from "../rum-config";
 
+const EMBED_HANDLE = "datadog-rum";
+
+const EMBED_STATUS = {
+  active: { level: "success", label: "Active" },
+  available: { level: "warning", label: "Not activated" },
+  unavailable: { level: "default", label: "Unavailable" },
+  checking: { level: "in-progress", label: "Checking" },
+} as const;
+
+function StorefrontCard({ isConfigured }: { isConfigured: boolean }) {
+  const [status, setStatus] = useState<keyof typeof EMBED_STATUS>("checking");
+
+  useEffect(() => {
+    shopify.app.extensions().then(
+      (extensions) => {
+        const embed = extensions
+          .filter((extension) => extension.type === "theme_app_extension")
+          .flatMap(
+            (extension) =>
+              extension.activations as { handle: string; status: string }[],
+          )
+          .find((activation) => activation.handle === EMBED_HANDLE);
+        setStatus(
+          embed?.status === "active"
+            ? "active"
+            : embed
+              ? "available"
+              : "unavailable",
+        );
+      },
+      () => setStatus("unavailable"),
+    );
+  }, []);
+
+  const openThemeEditor = () =>
+    open(
+      `shopify://admin/themes/current/editor?context=apps&activateAppId=${shopify.config.apiKey}/${EMBED_HANDLE}`,
+      "_top",
+    );
+
+  return (
+    <s-section>
+      <s-stack
+        direction="inline"
+        justifyContent="space-between"
+        alignItems="center"
+        gap="base"
+      >
+        <s-stack direction="block">
+          <Text size="lg" weight="bold">
+            Storefront
+          </Text>
+          <Text variant="secondary">
+            {status === "active"
+              ? "RUM is running on your online store."
+              : "Turn on the Datadog RUM app embed in your theme to start collecting sessions."}
+          </Text>
+        </s-stack>
+        <s-stack direction="inline" alignItems="center" gap="base">
+          <StatusPill level={EMBED_STATUS[status].level}>
+            {EMBED_STATUS[status].label}
+          </StatusPill>
+          <Button
+            onClick={openThemeEditor}
+            isDisabled={!isConfigured || status === "checking"}
+            isPrimary={status !== "active"}
+            level="featured"
+            label={status === "active" ? "Open theme editor" : "Activate"}
+          />
+        </s-stack>
+      </s-stack>
+    </s-section>
+  );
+}
+
 export default function RumSetup() {
   // Data
   const { configuration, loadError } = useLoaderData<typeof loader>();
@@ -79,7 +154,7 @@ export default function RumSetup() {
                 <Text weight="bold">Configuration</Text>
               </label>
               <Text variant="secondary">
-                Paste the JSON from your RUM application's setup page in
+                Paste the JSON from your RUM application&apos;s setup page in
                 Datadog. Required: applicationId, clientToken, site.
               </Text>
             </s-stack>
@@ -121,6 +196,7 @@ export default function RumSetup() {
             </s-stack>
           </s-stack>
         </s-section>
+        <StorefrontCard isConfigured={!!saved} />
       </s-page>
     </DruidsEnvironment>
   );
