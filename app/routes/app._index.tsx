@@ -93,12 +93,16 @@ function StorefrontStatus({
     "checking" | "active" | "available" | "unavailable" | "missing" | "unknown"
   >("checking");
   const [checkCount, setCheckCount] = useState(0);
+  const [editorUrl, setEditorUrl] = useState<string>();
 
   useEffect(() => {
     let cancelled = false;
     setStatus("checking");
     async function checkStatus() {
       try {
+        setEditorUrl(
+          `https://${shopify.config.shop}/admin/themes/current/editor?context=apps&activateAppId=${shopify.config.apiKey}/datadog-rum`,
+        );
         const extensions = await shopify.app.extensions();
         for (const extension of extensions) {
           if (extension.type !== "theme_app_extension") continue;
@@ -128,7 +132,6 @@ function StorefrontStatus({
     missing: "Storefront embed not installed",
     unknown: "Storefront embed status unavailable",
   };
-  const editorUrl = `https://${shopify.config.shop}/admin/themes/current/editor?context=apps&activateAppId=${shopify.config.apiKey}/datadog-rum`;
 
   return (
     <s-stack direction="block" gap="base">
@@ -145,6 +148,7 @@ function StorefrontStatus({
           href={editorUrl}
           target="_top"
           disabled={
+            !editorUrl ||
             !configurationSaved ||
             status === "missing" ||
             status === "checking" ||
