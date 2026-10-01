@@ -3,6 +3,7 @@ import { DruidsEnvironment } from "@datadog/druids/layout/DruidsEnvironment";
 import { TextArea } from "@datadog/druids/form/TextArea";
 import { Button } from "@datadog/druids/form/Button";
 import { StatusPill } from "@datadog/druids/pills/StatusPill";
+import { Badge } from "@datadog/druids/pills/Badge";
 import { Text } from "@datadog/druids/typography/Text";
 import { RumIcon } from "@datadog/druids/icons/Rum";
 import { ExternalLinkIcon } from "@datadog/druids/icons/ExternalLink";
@@ -15,6 +16,24 @@ import { parseRumConfig, rumApplicationUrl, rumListUrl } from "../rum-config";
 const DOCS_URL = "https://docs.datadoghq.com/integrations/rum-shopify/";
 
 const EMBED_HANDLE = "datadog-rum";
+
+// Shopify events the checkout web pixel turns into RUM events, by RUM event type
+const TRACKED_CHECKOUT_EVENTS = [
+  { rumType: "Views", events: ["page_viewed"] },
+  {
+    rumType: "Actions",
+    events: [
+      "clicked",
+      "checkout_started",
+      "checkout_contact_info_submitted",
+      "checkout_address_info_submitted",
+      "checkout_shipping_info_submitted",
+      "payment_info_submitted",
+      "checkout_completed",
+    ],
+  },
+  { rumType: "Errors", events: ["ui_extension_errored"] },
+];
 
 type EmbedStatus = "checking" | "active" | "available" | "unavailable";
 
@@ -101,7 +120,8 @@ function Step({
 
 export default function RumSetup() {
   // Data
-  const { configuration, loadError } = useLoaderData<typeof loader>();
+  const { configuration, checkoutConnected, loadError } =
+    useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const result = fetcher.data;
   const saved = result?.saved ? result.configuration : configuration;
@@ -239,11 +259,41 @@ export default function RumSetup() {
             <s-divider />
             <Step
               number={3}
-              isDone={false}
+              isDone={checkoutConnected}
               title="Track checkout"
               description="Capture checkout events with a Shopify web pixel. Session Replay isn't available on checkout pages."
-              action={<StatusPill>Coming soon</StatusPill>}
-            />
+              action={
+                <Button
+                  onClick={() =>
+                    fetcher.submit(
+                      { intent: "connect-checkout" },
+                      { method: "post" },
+                    )
+                  }
+                  isDisabled={!saved || saving || checkoutConnected}
+                  isPrimary={!checkoutConnected}
+                  label={checkoutConnected ? "Connected" : "Connect"}
+                />
+              }
+            >
+              <s-stack direction="block" gap="small-200">
+                {TRACKED_CHECKOUT_EVENTS.map(({ rumType, events }) => (
+                  <s-grid
+                    key={rumType}
+                    gridTemplateColumns="64px 1fr"
+                    alignItems="center"
+                    gap="base"
+                  >
+                    <Text variant="secondary">{rumType}</Text>
+                    <s-stack direction="inline" gap="small-200">
+                      {events.map((event) => (
+                        <Badge key={event} label={event} />
+                      ))}
+                    </s-stack>
+                  </s-grid>
+                ))}
+              </s-stack>
+            </Step>
           </s-stack>
         </s-section>
       </s-page>

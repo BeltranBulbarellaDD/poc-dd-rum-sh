@@ -1808,6 +1808,11 @@
   dependencies:
     "@shopify/graphql-client" "^2.0.0"
 
+"@shopify/web-pixels-extension@^2.18.0":
+  version "2.18.0"
+  resolved "https://registry.yarnpkg.com/@shopify/web-pixels-extension/-/web-pixels-extension-2.18.0.tgz#7f9343605bb221545ce91f83d5c19d93f7cf8753"
+  integrity sha512-qHp93QKdxJ8UREzkYOje6343An2wvXLUF71uduahiTjBfYXQ7VqIAXoHCwzCnP3Kss1AXLpz7XPaKCRC0ONOTw==
+
 "@standard-schema/spec@^1.0.0":
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/@standard-schema/spec/-/spec-1.1.0.tgz#a79b55dbaf8604812f52d140b2c9ab41bc150bb8"

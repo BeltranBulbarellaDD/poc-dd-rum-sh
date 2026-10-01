@@ -8,20 +8,31 @@ import { data } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { parseRumConfig } from "../rum-config";
-import { readRumConfig, saveRumConfig } from "../rum-config.server";
+import {
+  readRumConfig,
+  readWebPixelId,
+  saveRumConfig,
+  saveWebPixel,
+} from "../rum-config.server";
+import type { RumConfig } from "../rum-config";
 import RumSetup from "../components/rum-setup";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
   try {
-    const { config } = await readRumConfig(admin);
+    const [{ config }, webPixelId] = await Promise.all([
+      readRumConfig(admin),
+      readWebPixelId(admin),
+    ]);
     return {
       configuration: config === null ? "" : JSON.stringify(config, null, 2),
+      checkoutConnected: webPixelId !== null,
       loadError: "",
     };
   } catch {
     return {
       configuration: "",
+      checkoutConnected: false,
       loadError:
         "Could not load your configuration. Reload this page to try again.",
     };
@@ -30,15 +41,36 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
-  let configuration: unknown;
+  let form: FormData;
   try {
-    configuration = (await request.formData()).get("configuration");
+    form = await request.formData();
   } catch {
     return data(
       { saved: false, configuration: "", errors: ["Invalid form submission."] },
       { status: 400 },
     );
   }
+  if (form.get("intent") === "connect-checkout") {
+    try {
+      const [{ config }, webPixelId] = await Promise.all([
+        readRumConfig(admin),
+        readWebPixelId(admin),
+      ]);
+      if (!config) throw new Error("Save your RUM configuration first.");
+      await saveWebPixel(admin, webPixelId, config as RumConfig);
+      return { saved: false, configuration: "", errors: [] as string[] };
+    } catch (error) {
+      return data(
+        {
+          saved: false,
+          configuration: "",
+          errors: [(error as Error).message],
+        },
+        { status: 502 },
+      );
+    }
+  }
+  const configuration = form.get("configuration");
   const parsed = parseRumConfig(
     typeof configuration === "string" ? configuration : "",
   );
@@ -51,10 +83,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { installationId } = await readRumConfig(admin);
     await saveRumConfig(admin, installationId, parsed.config);
+    const errors: string[] = [];
+    const webPixelId = await readWebPixelId(admin);
+    if (webPixelId) {
+      try {
+        await saveWebPixel(admin, webPixelId, parsed.config);
+      } catch {
+        errors.push(
+          "Configuration saved, but checkout tracking could not be updated.",
+        );
+      }
+    }
     return {
       saved: true,
       configuration: JSON.stringify(parsed.config, null, 2),
-      errors: [] as string[],
+      errors,
     };
   } catch {
     return data(
