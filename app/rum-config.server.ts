@@ -66,3 +66,65 @@ export async function saveRumConfig(
     );
   }
 }
+
+export const WEB_PIXEL_QUERY = `#graphql
+  query RumWebPixel {
+    webPixel {
+      id
+    }
+  }
+`;
+
+export const WEB_PIXEL_CREATE_MUTATION = `#graphql
+  mutation CreateRumWebPixel($webPixel: WebPixelInput!) {
+    webPixelCreate(webPixel: $webPixel) {
+      webPixel { id }
+      userErrors { field message }
+    }
+  }
+`;
+
+export const WEB_PIXEL_UPDATE_MUTATION = `#graphql
+  mutation UpdateRumWebPixel($id: ID!, $webPixel: WebPixelInput!) {
+    webPixelUpdate(id: $id, webPixel: $webPixel) {
+      webPixel { id }
+      userErrors { field message }
+    }
+  }
+`;
+
+// Shopify returns an error instead of null when the app has no web pixel yet.
+export async function readWebPixelId(admin: AdminApiContext) {
+  try {
+    const result = await (await admin.graphql(WEB_PIXEL_QUERY)).json();
+    return (result.data?.webPixel?.id as string | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveWebPixel(
+  admin: AdminApiContext,
+  id: string | null,
+  config: RumConfig,
+) {
+  const webPixel = { settings: { rumConfig: JSON.stringify(config) } };
+  const response = id
+    ? await admin.graphql(WEB_PIXEL_UPDATE_MUTATION, {
+        variables: { id, webPixel },
+      })
+    : await admin.graphql(WEB_PIXEL_CREATE_MUTATION, {
+        variables: { webPixel },
+      });
+  const result = await response.json();
+  const payload = id
+    ? result.data?.webPixelUpdate
+    : result.data?.webPixelCreate;
+  if (("errors" in result && result.errors) || !payload?.webPixel) {
+    throw new Error(
+      payload?.userErrors
+        ?.map((error: { message: string }) => error.message)
+        .join(" ") || "Could not connect checkout tracking. Please retry.",
+    );
+  }
+}

@@ -1,0 +1,18 @@
+type = "web_pixel_extension"
+name = "datadog-rum-checkout"
+runtime_context = "strict"
+uid = "03bebb18-0810-6e18-1566-3a6e3c192627935ec15c"
+
+[customer_privacy]
+analytics = true
+marketing = false
+preferences = false
+sale_of_data = "disabled"
+
+[settings]
+type = "object"
+
+[settings.fields.rumConfig]
+name = "RUM configuration"
+description = "Datadog RUM init configuration as JSON"
+type = "single_line_text_field"
