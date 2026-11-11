@@ -9,6 +9,12 @@
     })(window, document, 'script', 'https://www.datadoghq-browser-agent.com/us1/v7/datadog-rum-shopify.js', 'DD_RUM');
     DD_RUM.onReady(function () {
       DD_RUM.init({{ rum_config | json }});
+      // Storefront counterpart of the product_viewed, collection_viewed and cart_viewed pixel events
+      DD_RUM.setViewContextProperty('shopify', {
+        pageType: {{ request.page_type | json }},
+        productId: {{ product.id | json }},
+        collectionId: {{ collection.id | json }}
+      });
     });
   </script>
 {% endif %}

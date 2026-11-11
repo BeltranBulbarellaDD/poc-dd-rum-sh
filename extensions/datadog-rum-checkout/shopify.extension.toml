@@ -16,3 +16,8 @@ type = "object"
 name = "RUM configuration"
 description = "Datadog RUM init configuration as JSON"
 type = "single_line_text_field"
+
+[settings.fields.trackedEvents]
+name = "Tracked events"
+description = "Comma-separated Shopify events collected besides page_viewed and ui_extension_errored"
+type = "single_line_text_field"

@@ -1,5 +1,5 @@
 import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
-import type { RumConfig } from "./rum-config";
+import { parseTrackedEvents, type RumConfig } from "./rum-config";
 
 export const RUM_CONFIG_QUERY = `#graphql
   query RumConfiguration {
@@ -71,6 +71,7 @@ export const WEB_PIXEL_QUERY = `#graphql
   query RumWebPixel {
     webPixel {
       id
+      settings
     }
   }
 `;
@@ -94,10 +95,19 @@ export const WEB_PIXEL_UPDATE_MUTATION = `#graphql
 `;
 
 // Shopify returns an error instead of null when the app has no web pixel yet.
-export async function readWebPixelId(admin: AdminApiContext) {
+export async function readWebPixel(admin: AdminApiContext) {
   try {
     const result = await (await admin.graphql(WEB_PIXEL_QUERY)).json();
-    return (result.data?.webPixel?.id as string | undefined) ?? null;
+    const webPixel = result.data?.webPixel;
+    if (!webPixel?.id) return null;
+    const settings =
+      typeof webPixel.settings === "string"
+        ? JSON.parse(webPixel.settings)
+        : webPixel.settings;
+    return {
+      id: webPixel.id as string,
+      trackedEvents: parseTrackedEvents(settings?.trackedEvents),
+    };
   } catch {
     return null;
   }
@@ -107,8 +117,15 @@ export async function saveWebPixel(
   admin: AdminApiContext,
   id: string | null,
   config: RumConfig,
+  trackedEvents: string[],
 ) {
-  const webPixel = { settings: { rumConfig: JSON.stringify(config) } };
+  const webPixel = {
+    settings: {
+      rumConfig: JSON.stringify(config),
+      // "none" keeps an empty selection apart from a blank (default) setting
+      trackedEvents: trackedEvents.join(",") || "none",
+    },
+  };
   const response = id
     ? await admin.graphql(WEB_PIXEL_UPDATE_MUTATION, {
         variables: { id, webPixel },
