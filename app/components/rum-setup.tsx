@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { DruidsEnvironment } from "@datadog/druids/layout/DruidsEnvironment";
 import { TextArea } from "@datadog/druids/form/TextArea";
 import { Button } from "@datadog/druids/form/Button";
@@ -11,29 +11,17 @@ import { CheckCircledIcon } from "@datadog/druids/icons/CheckCircled";
 import "@datadog/druids/styles.css";
 import { useFetcher, useLoaderData } from "react-router";
 import type { action, loader } from "../routes/app._index";
-import { parseRumConfig, rumApplicationUrl, rumListUrl } from "../rum-config";
+import {
+  ALWAYS_TRACKED_EVENTS,
+  CHECKOUT_EVENTS,
+  parseRumConfig,
+  rumApplicationUrl,
+  rumListUrl,
+} from "../rum-config";
 
 const DOCS_URL = "https://docs.datadoghq.com/integrations/rum-shopify/";
 
 const EMBED_HANDLE = "datadog-rum";
-
-// Shopify events the checkout web pixel turns into RUM events, by RUM event type
-const TRACKED_CHECKOUT_EVENTS = [
-  { rumType: "Views", events: ["page_viewed"] },
-  {
-    rumType: "Actions",
-    events: [
-      "clicked",
-      "checkout_started",
-      "checkout_contact_info_submitted",
-      "checkout_address_info_submitted",
-      "checkout_shipping_info_submitted",
-      "payment_info_submitted",
-      "checkout_completed",
-    ],
-  },
-  { rumType: "Errors", events: ["ui_extension_errored"] },
-];
 
 type EmbedStatus = "checking" | "active" | "available" | "unavailable";
 
@@ -120,7 +108,7 @@ function Step({
 
 export default function RumSetup() {
   // Data
-  const { configuration, checkoutConnected, loadError } =
+  const { configuration, checkoutConnected, trackedEvents, loadError } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const result = fetcher.data;
@@ -132,6 +120,18 @@ export default function RumSetup() {
   const [text, setText] = useState(configuration);
   const saving = fetcher.state !== "idle";
   const dirty = text !== saved;
+  const [selectedEvents, setSelectedEvents] = useState(trackedEvents);
+  const eventsDirty =
+    selectedEvents.length !== trackedEvents.length ||
+    selectedEvents.some((event) => !trackedEvents.includes(event));
+
+  function toggleEvent(event: string) {
+    setSelectedEvents((selected) =>
+      selected.includes(event)
+        ? selected.filter((other) => other !== event)
+        : [...selected, event],
+    );
+  }
 
   // Config
   const { config, errors } = parseRumConfig(text);
@@ -148,9 +148,17 @@ export default function RumSetup() {
           slot="primary-action"
           variant="primary"
           onClick={() =>
-            fetcher.submit({ configuration: text }, { method: "post" })
+            fetcher.submit(
+              {
+                configuration: text,
+                ...(checkoutConnected && {
+                  trackedEvents: selectedEvents.join(",") || "none",
+                }),
+              },
+              { method: "post" },
+            )
           }
-          disabled={saving || !config || !dirty || !!loadError}
+          disabled={saving || !config || !(dirty || eventsDirty) || !!loadError}
           loading={saving}
         >
           Save
@@ -261,7 +269,7 @@ export default function RumSetup() {
               number={3}
               isDone={checkoutConnected}
               title="Track checkout"
-              description="Capture checkout events with a Shopify web pixel. Session Replay isn't available on checkout pages."
+              description="Capture checkout events with a Shopify web pixel. Choose which events are collected below. Session Replay isn't available on checkout pages."
               action={
                 <Button
                   onClick={() =>
@@ -277,7 +285,7 @@ export default function RumSetup() {
               }
             >
               <s-stack direction="block" gap="small-200">
-                {TRACKED_CHECKOUT_EVENTS.map(({ rumType, events }) => (
+                {CHECKOUT_EVENTS.map(({ rumType, events }) => (
                   <s-grid
                     key={rumType}
                     gridTemplateColumns="64px 1fr"
@@ -286,9 +294,45 @@ export default function RumSetup() {
                   >
                     <Text variant="secondary">{rumType}</Text>
                     <s-stack direction="inline" gap="small-200">
-                      {events.map((event) => (
-                        <Badge key={event} label={event} />
-                      ))}
+                      {events.map((event) => {
+                        const isSelected = selectedEvents.includes(event);
+                        const isEnabled = checkoutConnected && !saving;
+                        return ALWAYS_TRACKED_EVENTS.includes(event) ? (
+                          <Fragment key={event}>
+                            <s-clickable interestFor={`${event}-tooltip`}>
+                              <Badge
+                                label={event}
+                                icon={CheckCircledIcon}
+                                isInteractive
+                                isActive
+                              />
+                            </s-clickable>
+                            <s-tooltip id={`${event}-tooltip`}>
+                              Always collected by the checkout pixel
+                            </s-tooltip>
+                          </Fragment>
+                        ) : (
+                          <button
+                            key={event}
+                            type="button"
+                            style={{
+                              padding: 0,
+                              border: 0,
+                              background: "none",
+                            }}
+                            disabled={!isEnabled}
+                            aria-pressed={isSelected}
+                            onClick={() => toggleEvent(event)}
+                          >
+                            <Badge
+                              label={event}
+                              icon={isSelected ? CheckCircledIcon : null}
+                              isInteractive={isSelected || isEnabled}
+                              isActive={isSelected}
+                            />
+                          </button>
+                        );
+                      })}
                     </s-stack>
                   </s-grid>
                 ))}
